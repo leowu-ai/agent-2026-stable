@@ -1,0 +1,53 @@
+{
+  "project_root": ".",
+  "vqa_json": "/path/to/questions.json",
+  "wsi_root": "/path/to/wsis",
+  "output_dir": "./outputs",
+  "device": "auto",
+  "scales": {
+    "1024": "/path/to/toolbank_1024/G2P_ToolBank_Minimal",
+    "2048": "/path/to/toolbank_2048/G2P_ToolBank_Minimal",
+    "4096": "/path/to/toolbank_4096/G2P_ToolBank_Minimal"
+  },
+  "scale_manifests": {
+    "1024": "/path/to/manifest_1024.csv",
+    "2048": "/path/to/manifest_2048.csv",
+    "4096": "/path/to/manifest_4096.csv"
+  },
+  "fusion_weights": {
+    "morphology": {"1024": 0.55, "2048": 0.30, "4096": 0.15},
+    "molecular": {"1024": 0.50, "2048": 0.35, "4096": 0.15},
+    "clinical": {"1024": 0.40, "2048": 0.30, "4096": 0.30},
+    "survival": {"1024": 0.40, "2048": 0.30, "4096": 0.30}
+  },
+  "retrieval": {
+    "top_programs": 3,
+    "genes_per_program": 2,
+    "top_patches_per_source": 4,
+    "all_phenotype_top_patches_per_prototype": 2,
+    "morphology_context_patches_per_slide": 2,
+    "morphology_diverse_patches_per_slide": 2,
+    "morphology_retrieval_mode": "question_similarity",
+    "partial_retrieval_mode": "hybrid_question_prototype",
+    "direct_retrieval_mode": "hybrid_question_prototype",
+    "question_feature_path": "/path/to/question_features.npz",
+    "question_top_patches_per_slide": 4,
+    "max_evidence_groups": 4,
+    "same_scale_iou": 0.5,
+    "feature_cosine": 0.95,
+    "global_bypass_per_scale": 2
+  },
+  "qwen": {
+    "backend": "openai_compatible",
+    "base_url": "http://127.0.0.1:8000/v1",
+    "model": "Qwen3.5",
+    "api_key": "EMPTY",
+    "enable_thinking": false
+  },
+  "pathor1": {
+    "backend": "openai_compatible",
+    "base_url": "http://127.0.0.1:8001/v1",
+    "model": "Patho-R1-7B",
+    "api_key": "EMPTY"
+  }
+}

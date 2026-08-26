@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.DS_Store
+
+# Runtime outputs and private/local assets
+outputs/
+evidence_patches/
+checkpoints/
+weights/
+data/raw/
+data/private/
+
+# Large model/data artifacts
+*.pt
+*.pth
+*.ckpt
+*.svs
+*.tif
+*.tiff
+
+# Local configs may contain private paths/endpoints
+configs/*.local.json
