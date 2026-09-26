@@ -15,7 +15,7 @@ from biotrace import BioTraceAgent, BioTraceEvidenceSpace
 def main() -> None:
     torch.manual_seed(7)
     feature_dim = 512
-    hidden_dim = 128
+    hidden_dim = 512
     num_genes = 8
     num_pathways = 4
     num_phenotypes = 3
