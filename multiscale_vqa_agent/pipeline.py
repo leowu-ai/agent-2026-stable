@@ -58,6 +58,7 @@ class BioTracePipeline(torch.nn.Module):
         choices: List[str],
         features_by_scale: Mapping[str, Tensor],
         question_feature: Optional[Tensor] = None,
+        image_urls_by_scale: Optional[Mapping[str, List[str]]] = None,
     ) -> Dict[str, Any]:
         plan = self.planner.plan(case_id, question, choices)
         scale_results = self.g2p_agent.infer_case(features_by_scale)
@@ -124,6 +125,7 @@ class BioTracePipeline(torch.nn.Module):
                     visual_guidance=knowledge[
                         "scale_specific_visual_guidance"
                     ].get(scale, []),
+                    image_urls=(image_urls_by_scale or {}).get(scale, []),
                 )
                 memory.add_observation(
                     EvidenceObservation(
