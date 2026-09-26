@@ -225,18 +225,11 @@ class BioTracePipeline(torch.nn.Module):
         agreement = 1.0 - min(
             max(torch.tensor(scores).std(unbiased=False).item(), 0.0), 1.0
         )
-        confidence = 0.65 * initial_score + 0.35 * agreement
+        confidence = initial_score
         reliability = agreement
-
-        choice_index = next(
-            (index for index, choice in enumerate(memory.choices)
-             if choice.strip().casefold() == target.strip().casefold()),
-            0,
-        )
 
         memory.structured_candidate = {
             "phenotype": target,
-            "choice_index": choice_index,
         }
         memory.structured_confidence = float(confidence)
         memory.structured_reliability = float(reliability)
@@ -245,7 +238,6 @@ class BioTracePipeline(torch.nn.Module):
             "initial_magnification": "10x",
             "per_scale_prediction": per_scale,
             "cross_scale_agreement": float(agreement),
-            "candidate_choice_index": choice_index,
             "semantics": "WSI-derived phenotype prediction; not clinical ground truth.",
         }
         memory.add_observation(
