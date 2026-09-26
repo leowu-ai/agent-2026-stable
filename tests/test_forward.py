@@ -1,6 +1,7 @@
 import torch
 
-from biotrace import BioTraceAgent, BioTraceEvidenceSpace
+from biotrace import BioTraceAgent, BioTraceEvidenceSpace, EvidenceStatus
+from biotrace.agent import EvidenceObservation, EvidenceState
 
 
 def test_synthetic_forward_shapes():
@@ -15,6 +16,23 @@ def test_synthetic_forward_shapes():
     }
     out = agent(sample)
     assert out["status"] in {"sufficient", "partial", "insufficient"}
+    assert isinstance(out["evidence_score"], float)
     assert out["scale_cache"]["10x"]["gene_scores"].shape == (1, 4)
     assert out["scale_cache"]["20x"]["pathway_scores"].shape == (1, 2)
     assert out["scale_cache"]["40x"]["phenotype_scores"].shape == (1, 3)
+
+
+def test_demo_verifier_can_stop_early_on_strong_current_evidence():
+    state = EvidenceState()
+    state.add(
+        EvidenceObservation(
+            source="synthetic_direct",
+            magnification="10x",
+            concept_index=0,
+            patch_index=None,
+            relevance=0.95,
+            reliability_context=0.90,
+            role="direct_phenotype",
+        )
+    )
+    assert BioTraceAgent._demo_verify(state) == EvidenceStatus.SUFFICIENT
