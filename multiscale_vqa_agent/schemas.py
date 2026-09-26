@@ -28,8 +28,7 @@ class PatchCandidate:
     magnification: str
     patch_index: int
     score: float
-    x: Optional[float] = None
-    y: Optional[float] = None
+    box: Optional[List[float]] = None
     source: str = "phenotype_attention"
     parent_patch_index: Optional[int] = None
 
