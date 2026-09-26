@@ -1,38 +1,39 @@
 import torch
 
-from biotrace import BioTraceAgent, BioTraceEvidenceSpace, EvidenceStatus
-from biotrace.agent import EvidenceObservation, EvidenceState
+from demo_forward import build_pipeline
 
 
-def test_synthetic_forward_shapes():
+def test_full_synthetic_agent_forward():
     torch.manual_seed(0)
-    support = torch.tensor([[1, 0], [1, 1], [0, 1], [1, 0]], dtype=torch.float32)
-    model = BioTraceEvidenceSpace(16, 8, 4, 2, 3, support)
-    agent = BioTraceAgent(model, top_pathways=2, genes_per_pathway=1)
-    sample = {
-        "10x": torch.randn(1, 5, 16),
-        "20x": torch.randn(1, 7, 16),
-        "40x": torch.randn(1, 9, 16),
+    pipeline = build_pipeline()
+    pipeline.eval()
+    features = {
+        "10x": torch.randn(1, 12, 512),
+        "20x": torch.randn(1, 24, 512),
+        "40x": torch.randn(1, 48, 512),
     }
-    out = agent(sample)
-    assert out["status"] in {"sufficient", "partial", "insufficient"}
-    assert isinstance(out["evidence_score"], float)
-    assert out["scale_cache"]["10x"]["gene_scores"].shape == (1, 4)
-    assert out["scale_cache"]["20x"]["pathway_scores"].shape == (1, 2)
-    assert out["scale_cache"]["40x"]["phenotype_scores"].shape == (1, 3)
-
-
-def test_demo_verifier_can_stop_early_on_strong_current_evidence():
-    state = EvidenceState()
-    state.add(
-        EvidenceObservation(
-            source="synthetic_direct",
-            magnification="10x",
-            concept_index=0,
-            patch_index=None,
-            relevance=0.95,
-            reliability_context=0.90,
-            role="direct_phenotype",
+    with torch.no_grad():
+        output = pipeline.forward(
+            case_id="synthetic",
+            question="Which synthetic phenotype is best supported?",
+            choices=["Phenotype-A", "Phenotype-B", "Phenotype-C"],
+            features_by_scale=features,
+            question_feature=torch.randn(512),
         )
-    )
-    assert BioTraceAgent._demo_verify(state) == EvidenceStatus.SUFFICIENT
+
+    assert output["answer"]["answer_id"] in {"A", "B", "C"}
+    memory = output["working_memory"]
+    assert memory["observations"]
+    assert memory["action_history"]
+    assert memory["final_verifier"]["evidence_state"] in {
+        "sufficient", "partial", "conflicting", "insufficient", "unavailable"
+    }
+
+
+def test_gene_pathway_membership_is_fixed_buffer():
+    pipeline = build_pipeline()
+    model = pipeline.g2p_agent.models["10x"]
+    parameter_names = {name for name, _ in model.named_parameters()}
+    buffer_names = {name for name, _ in model.named_buffers()}
+    assert "H_prior" in buffer_names
+    assert all("gene_pathway_strength" not in name for name in parameter_names)

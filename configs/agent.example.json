@@ -1,0 +1,16 @@
+{
+  "magnifications": ["10x", "20x", "40x"],
+  "initial_structured_evidence": "10x",
+  "adaptive_visual_refinement": ["10x", "20x", "40x"],
+  "top_pathway_candidates": 3,
+  "genes_per_pathway": 2,
+  "top_patches_per_evidence_source": 4,
+  "question_relevant_patches_per_slide": 4,
+  "maximum_evidence_groups": 4,
+  "same_scale_iou_threshold": 0.50,
+  "feature_cosine_threshold": 0.95,
+  "global_bypass_candidates_per_magnification": 2,
+  "pathology_perceptor": "Patho-R1-7B",
+  "language_reasoner": "Qwen3.5-9B",
+  "qwen_thinking_mode": false
+}

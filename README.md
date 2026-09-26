@@ -3,62 +3,106 @@
 **BioTrace** is a pathology agent for evidence-guided whole-slide pathology VQA.
 It organizes multiscale WSI representations into a structured
 **Gene -> Pathway -> Phenotype** evidence space and performs question-driven
-evidence acquisition and verification before generating an answer.
+evidence acquisition and verification before final answer generation.
 
 ## Overview
 
-BioTrace is built around three components:
+BioTrace follows three coupled stages:
 
-1. **Structured biological evidence space.**  
-   Concept-specific prototypes ground Gene, Pathway, and Phenotype concepts in
-   multiscale WSI representations, producing patient-level predictions and
-   spatial responses over patches.
+1. **Evidence requirement.** The Planner converts a pathology question into a
+   structured evidence requirement, including the target phenotype, requested
+   evidence type, preferred observation scale, and answer constraint.
+2. **Evidence acquisition.** Scale-specific structured models expose phenotype,
+   Pathway, and Gene predictions together with concept-specific spatial responses.
+   The Agent adaptively acquires direct phenotype evidence, H&E morphology, and
+   supportive biological evidence across 10x, 20x, and 40x.
+3. **Evidence verification.** After each acquisition, the Evidence Verifier
+   updates the evidence state and determines whether the current evidence is
+   sufficient or another observation is required.
 
-2. **Adaptive evidence acquisition.**  
-   The agent begins with compact phenotype evidence and progressively acquires
-   additional visual evidence across **10x -> 20x -> 40x** when needed.
-   Pathway- and Gene-level evidence can be queried at 40x as supportive
-   biological context.
+The full system uses **CONCH** pathology representations, **Patho-R1-7B** as the
+morphology observer, and **Qwen3.5-9B** for language-side planning, verification,
+and evidence arbitration.
 
-3. **Evidence verification and reasoning.**  
-   The accumulated evidence is maintained in an explicit evidence state.
-   After each acquisition step, the verifier updates the evidence status as
-   `sufficient`, `partial`, `conflicting`, `insufficient`, or
-   `unavailable`, allowing unresolved evidence requirements to guide the next
-   observation.
+## Structured evidence space
 
-The full BioTrace system uses **CONCH** for pathology representations,
-**Patho-R1-7B** for morphology-grounded visual observation, and
-**Qwen3.5-9B** for language-side reasoning and evidence verification.
+At each magnification, concept-specific prototypes ground Gene, Pathway, and
+Phenotype concepts in WSI patch features. Gene evidence is aggregated into
+Pathway context using biologically defined Gene -> Pathway membership, while
+Pathway -> Phenotype relation strengths connect biological programs to phenotype
+representations.
 
-## Evidence hierarchy
+The forward path keeps the same evidence semantics used by the Agent:
 
 ```text
-Whole-Slide Image
-       |
-       v
-Multiscale WSI representations
-  10x      20x      40x
-       |
-       v
-Gene -> Pathway -> Phenotype
-       |
-       v
-Question-driven evidence acquisition
-       |
-       v
-Evidence verification
-       |
-       v
-Final answer
+Gene evidence
+     |
+     v
+Pathway evidence
+     |
+     v
+Phenotype evidence
+     |
+     +--------------------+
+     |                    |
+     v                    v
+spatial responses     patient-level predictions
+     |                    |
+     +----------+---------+
+                |
+                v
+       evidence acquisition
 ```
 
-Phenotype-, Pathway-, and Gene-level outputs are inferred from WSI
-representations. Pathway and Gene evidence provides supportive biological
-context, while directly observed morphology and phenotype-level evidence remain
-the primary evidence sources for pathology reasoning.
+Pathway- and Gene-level values are WSI-derived predictions and are treated as
+supportive evidence. They are not interpreted as measured RNA, IHC, FISH/ISH,
+mutation, amplification, copy number, or protein assays.
 
-## Quick start
+## Agent loop
+
+```text
+Question + choices
+       |
+       v
+Evidence Planner
+       |
+       v
+Round-0 phenotype evidence (10x)
+       |
+       v
+Evidence Verifier
+       |
+       +---- sufficient ----------------------> Final Arbiter
+       |
+       +---- unresolved
+       v
+10x -> 20x -> 40x morphology acquisition
+       |
+       v
+optional Pathway / Gene support at 40x
+       |
+       v
+Evidence Verifier -> Final Arbiter
+```
+
+The working memory keeps direct and supportive evidence separate and records the
+acquisition trajectory. The verifier uses five evidence states:
+`sufficient`, `partial`, `conflicting`, `insufficient`, and `unavailable`.
+
+## Prompt interfaces
+
+The main language-side contracts are included under
+`multiscale_vqa_agent/prompts/`:
+
+- `planner.txt`: question -> evidence requirement;
+- `pathology_observer.txt`: morphology-only visual observation;
+- `verifier.txt`: evidence sufficiency and next-action selection;
+- `fusion_arbiter.txt`: final evidence arbitration.
+
+These prompts encode the evidence roles and constraints used by the agent while
+keeping the final answer grounded in the accumulated evidence state.
+
+## Synthetic forward example
 
 Install the minimal dependencies:
 
@@ -66,16 +110,17 @@ Install the minimal dependencies:
 python -m pip install -r requirements.txt
 ```
 
-Run the included forward example:
+Run one end-to-end forward pass:
 
 ```bash
 python demo_forward.py
 ```
 
-The example constructs random multiscale patch embeddings and runs them through
-the BioTrace evidence space and adaptive evidence-acquisition path.
+The example creates random precomputed patch embeddings at 10x, 20x, and 40x,
+then runs the Planner, structured evidence models, relation reasoning, patch
+retrieval, working memory, Evidence Verifier, and final arbitration interfaces.
 
-A minimal test suite is also included:
+A small test suite is included:
 
 ```bash
 python -m pytest -q
@@ -85,18 +130,35 @@ python -m pytest -q
 
 ```text
 .
-├── biotrace/
+├── configs/
+│   └── agent.example.json
+├── models/
 │   ├── __init__.py
-│   ├── agent.py
-│   └── evidence_space.py
+│   └── g2p_toolbank.py
+├── multiscale_vqa_agent/
+│   ├── __init__.py
+│   ├── agent_memory.py
+│   ├── clients.py
+│   ├── fusion.py
+│   ├── g2p_runtime.py
+│   ├── knowledge_rag.py
+│   ├── pathology.py
+│   ├── question_features.py
+│   ├── pipeline.py
+│   ├── planner.py
+│   ├── registry.py
+│   ├── relation.py
+│   ├── retrieval.py
+│   ├── schemas.py
+│   ├── verifier.py
+│   └── prompts/
+│       ├── planner.txt
+│       ├── pathology_observer.txt
+│       ├── verifier.txt
+│       └── fusion_arbiter.txt
 ├── tests/
 │   └── test_forward.py
 ├── demo_forward.py
 ├── requirements.txt
 └── README.md
 ```
-
-- `biotrace/evidence_space.py`: multiscale Gene-Pathway-Phenotype evidence modeling.
-- `biotrace/agent.py`: evidence state, adaptive acquisition, and verification.
-- `demo_forward.py`: end-to-end forward example.
-- `tests/test_forward.py`: basic forward and adaptive-control tests.
