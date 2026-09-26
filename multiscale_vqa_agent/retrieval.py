@@ -165,6 +165,8 @@ class MultiScaleRetrievalAgent:
                 )
             )
 
+        # Preserve a small global bypass so question-relevant evidence is not
+        # forced to remain inside a weak parent trajectory.
         if len(groups) < self.max_evidence_groups:
             ranked_global = torch.argsort(combined, descending=True).tolist()
             bypass = 0
