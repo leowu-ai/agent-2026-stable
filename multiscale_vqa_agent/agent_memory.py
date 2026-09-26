@@ -46,7 +46,11 @@ class WorkingMemory:
 
     def add_observation(self, observation: EvidenceObservation) -> None:
         self.observations.append(observation)
-        if observation.magnification and observation.magnification not in self.inspected_magnifications:
+        if (
+            observation.evidence_type == "morphology"
+            and observation.magnification
+            and observation.magnification not in self.inspected_magnifications
+        ):
             self.inspected_magnifications.append(observation.magnification)
         row = observation.to_dict()
         if observation.evidence_role == "direct":
