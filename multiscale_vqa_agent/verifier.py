@@ -21,9 +21,10 @@ EVIDENCE_STATES = {
 class EvidenceVerifierAgent:
     """Evidence-sufficiency controller.
 
-    The optional language-model path follows the same JSON action contract used
-    by the research agent. The synthetic demo uses the deterministic fallback,
-    which depends only on current evidence state and never on answer labels.
+    With a language-model client enabled, verification is adaptive and follows
+    the evidence-state/action contract used by BioTrace. When the client is
+    disabled, a label-free structural fallback is used only to exercise the
+    forward interfaces on synthetic data.
     """
 
     def __init__(
@@ -94,35 +95,10 @@ class EvidenceVerifierAgent:
         memory: WorkingMemory,
         available_actions: List[str],
     ) -> Dict[str, Any]:
-        confidence = float(memory.structured_confidence)
-        reliability = float(memory.structured_reliability)
-        visual_scales = {
-            obs.magnification
-            for obs in memory.observations
-            if obs.evidence_type == "morphology"
-        }
-        has_pathway = any(
-            obs.target_type == "pathway" for obs in memory.observations
-        )
-        has_gene = any(obs.target_type == "gene" for obs in memory.observations)
-
-        score = confidence * (0.5 + 0.5 * reliability)
-        score += 0.08 * len(visual_scales)
-        score += 0.06 if has_pathway else 0.0
-        score += 0.04 if has_gene else 0.0
-
-        if score >= 0.89 and "answer" in available_actions:
-            return {
-                "evidence_sufficient": True,
-                "evidence_state": "sufficient",
-                "missing_evidence_type": "none",
-                "conflict_detected": False,
-                "next_action": "answer",
-                "target": None,
-                "reason": "Accumulated evidence is sufficient for the synthetic forward contract.",
-                "decision_source": "synthetic_fallback",
-            }
-
+        # No answer labels, option semantics, confidence thresholds, or
+        # benchmark-specific rules are used here. The fallback simply walks the
+        # evidence hierarchy so the synthetic example can exercise every
+        # interface without an external language-model service.
         for action, missing in (
             ("inspect_10x", "coarse_visual"),
             ("inspect_20x", "intermediate_visual"),
@@ -133,14 +109,31 @@ class EvidenceVerifierAgent:
             if action in available_actions:
                 return {
                     "evidence_sufficient": False,
-                    "evidence_state": "partial" if memory.observations else "insufficient",
+                    "evidence_state": (
+                        "partial" if memory.observations else "insufficient"
+                    ),
                     "missing_evidence_type": missing,
                     "conflict_detected": False,
                     "next_action": action,
                     "target": None,
-                    "reason": f"Additional {missing} evidence is requested.",
-                    "decision_source": "synthetic_fallback",
+                    "reason": f"Exercise the next available {missing} interface.",
+                    "decision_source": "synthetic_structural_fallback",
                 }
+
+        if "answer" in available_actions:
+            return {
+                "evidence_sufficient": False,
+                "evidence_state": "partial",
+                "missing_evidence_type": "none",
+                "conflict_detected": False,
+                "next_action": "answer",
+                "target": None,
+                "reason": (
+                    "No additional synthetic evidence action remains; "
+                    "proceed to the final arbitration interface with uncertainty."
+                ),
+                "decision_source": "synthetic_structural_fallback",
+            }
 
         return {
             "evidence_sufficient": False,
@@ -150,5 +143,5 @@ class EvidenceVerifierAgent:
             "next_action": "unavailable",
             "target": None,
             "reason": "No further evidence action is available.",
-            "decision_source": "synthetic_fallback",
+            "decision_source": "synthetic_structural_fallback",
         }
