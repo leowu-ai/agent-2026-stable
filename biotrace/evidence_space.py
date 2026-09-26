@@ -87,13 +87,11 @@ class _ScaleEvidenceBlock(nn.Module):
         phenotype_attn, phenotype_direct = self._ground(self.phenotype_prototypes, patches)
 
         gp = self.gene_pathway_support * torch.sigmoid(self.gene_pathway_strength)
-        gp_norm = gp.sum(dim=0, keepdim=True).clamp_min(1e-6)
-        pathway_from_gene = torch.einsum("gp,bgh->bph", gp / gp_norm, gene_direct)
+        pathway_from_gene = torch.einsum("gp,bgh->bph", gp, gene_direct)
         pathway_repr = pathway_direct + pathway_from_gene
 
         pp = torch.tanh(self.pathway_phenotype_strength)
-        pp_norm = pp.abs().sum(dim=0, keepdim=True).clamp_min(1.0)
-        phenotype_from_pathway = torch.einsum("pt,bph->bth", pp / pp_norm, pathway_repr)
+        phenotype_from_pathway = torch.einsum("pt,bph->bth", pp, pathway_repr)
         phenotype_repr = phenotype_direct + phenotype_from_pathway
 
         return {
