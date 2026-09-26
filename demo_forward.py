@@ -57,6 +57,11 @@ def main() -> None:
 
     print("BioTrace synthetic forward: OK")
     print("status:", result["status"])
+    print("evidence score:", round(result["evidence_score"], 4))
+    print(
+        "acquisition path:",
+        " -> ".join(result["evidence_state"].inspected_magnifications),
+    )
     print("selected phenotype index:", result["selected_phenotype"])
     print("supportive pathway indices:", result["support"]["pathways"])
     print("supportive gene indices:", result["support"]["genes"])
