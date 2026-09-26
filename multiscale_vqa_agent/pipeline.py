@@ -226,9 +226,10 @@ class BioTracePipeline(torch.nn.Module):
         confidence = 0.65 * initial_score + 0.35 * agreement
         reliability = agreement
 
-        choice_index = min(
-            int(round(initial_score * max(len(memory.choices) - 1, 0))),
-            max(len(memory.choices) - 1, 0),
+        choice_index = next(
+            (index for index, choice in enumerate(memory.choices)
+             if choice.strip().casefold() == target.strip().casefold()),
+            0,
         )
 
         memory.structured_candidate = {
