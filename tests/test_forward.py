@@ -21,7 +21,8 @@ def test_full_synthetic_agent_forward():
             question_feature=torch.randn(512),
         )
 
-    assert output["answer"]["answer_id"] in {"A", "B", "C"}
+    assert output["answer"]["backend"] == "disabled"
+    assert output["answer"]["answer_id"] is None
     memory = output["working_memory"]
     assert memory["observations"]
     assert memory["action_history"]
