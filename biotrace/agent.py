@@ -72,15 +72,60 @@ class BioTraceAgent(nn.Module):
         return float((top2[0, 0] - top2[0, 1]).clamp(0, 1).detach())
 
     @staticmethod
-    def _demo_verify(state: EvidenceState) -> EvidenceStatus:
-        """Deterministic stand-in used only to exercise the synthetic state machine."""
+    def _demo_evidence_score(state: EvidenceState) -> float:
+        """Synthetic-only evidence score used to exercise adaptive control flow.
+
+        This is not the production verifier. It intentionally depends on the
+        currently accumulated evidence so the example can stop early when a
+        synthetic sample is already well supported, or request additional
+        evidence when it is not.
+        """
+        if not state.observations:
+            return 0.0
+
+        direct = [
+            obs for obs in state.observations if obs.role == "direct_phenotype"
+        ]
+        morphology = [
+            obs for obs in state.observations
+            if obs.role == "visible_morphology_placeholder"
+        ]
+        supportive = [
+            obs for obs in state.observations if obs.role == "supportive_biology"
+        ]
+
+        direct_score = max(
+            (
+                obs.relevance
+                * (0.5 + 0.5 * max(0.0, min(1.0, obs.reliability_context)))
+                for obs in direct
+            ),
+            default=0.0,
+        )
+        morphology_score = 0.25 * max(
+            (obs.relevance for obs in morphology), default=0.0
+        )
+        observed_scales = {
+            obs.magnification for obs in morphology
+            if obs.magnification in {"10x", "20x", "40x"}
+        }
+        coverage_score = 0.08 * len(observed_scales)
+        supportive_score = 0.12 if supportive else 0.0
+
+        return float(direct_score + morphology_score + coverage_score + supportive_score)
+
+    @classmethod
+    def _demo_verify(cls, state: EvidenceState) -> EvidenceStatus:
+        """Demo-only adaptive verifier; production verification is not released here."""
         if not state.observations:
             return EvidenceStatus.INSUFFICIENT
-        if "40x" in state.inspected_magnifications and any(
-            obs.role == "supportive_biology" for obs in state.observations
-        ):
+
+        score = cls._demo_evidence_score(state)
+        if score >= 0.50:
             return EvidenceStatus.SUFFICIENT
-        return EvidenceStatus.PARTIAL
+        if score >= 0.28:
+            return EvidenceStatus.PARTIAL
+        return EvidenceStatus.INSUFFICIENT
 
     def _add_phenotype_evidence(
         self, state: EvidenceState, cache: Dict[str, Tensor], scale: str
@@ -184,8 +229,8 @@ class BioTraceAgent(nn.Module):
         phenotype_index = self._add_phenotype_evidence(state, cache["10x"], "10x")
         state.status = self._demo_verify(state)
 
-        # If unresolved, inspect morphology from coarse to fine while preserving
-        # synthetic parent/child correspondence between successive scales.
+        # If unresolved, inspect morphology from coarse to fine. The verifier is
+        # re-evaluated after each acquisition, so the path may stop at any scale.
         parent_patch: Optional[int] = None
         parent_count: Optional[int] = None
         for scale in ("10x", "20x", "40x"):
@@ -203,6 +248,8 @@ class BioTraceAgent(nn.Module):
             parent_count = cache[scale]["phenotype_spatial_response"].shape[-1]
             state.status = self._demo_verify(state)
 
+        # Pathway/Gene evidence is an optional support stage at 40x and is queried
+        # only if the accumulated phenotype/morphology evidence remains unresolved.
         support = {"pathways": [], "genes": []}
         if "40x" in state.inspected_magnifications and state.status != EvidenceStatus.SUFFICIENT:
             support = self._add_supportive_biology(state, cache["40x"], phenotype_index)
@@ -210,6 +257,7 @@ class BioTraceAgent(nn.Module):
 
         return {
             "status": state.status.value,
+            "evidence_score": self._demo_evidence_score(state),
             "selected_phenotype": phenotype_index,
             "support": support,
             "evidence_state": state,
