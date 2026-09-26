@@ -74,3 +74,44 @@ class OpenAICompatibleClient:
             return result["choices"][0]["message"]["content"]
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
             return None
+
+    def chat_multimodal(
+        self,
+        system: str,
+        text: str,
+        image_urls: list[str],
+        *,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> Optional[str]:
+        if not self.enabled:
+            return None
+        content = [{"type": "text", "text": text}]
+        content.extend(
+            {"type": "image_url", "image_url": {"url": url}}
+            for url in image_urls
+        )
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": content},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        request = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key or 'EMPTY'}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            return result["choices"][0]["message"]["content"]
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
+            return None
