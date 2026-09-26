@@ -1,8 +1,9 @@
 # BioTrace
 
 **BioTrace** is a verifiable pathology agent for tracing molecular-to-phenotype
-evidence in whole-slide VQA. This repository is a compact, double-blind review
-artifact that exposes the core forward computation on a fully synthetic sample.
+evidence in whole-slide VQA. This anonymized review snapshot exposes the core
+architecture and inference interfaces described in the paper using a fully
+synthetic forward example.
 
 ## What is included
 
@@ -14,7 +15,7 @@ The artifact mirrors the paper at the level needed to inspect the forward path:
 - trainable Pathway -> Phenotype relations;
 - independent 10x / 20x / 40x structured evidence computation;
 - a lightweight evidence state with the five verifier states used by BioTrace;
-- coarse-to-fine 10x -> 20x -> 40x acquisition without fixed multiscale fusion;
+- adaptive coarse-to-fine 10x -> 20x -> 40x acquisition without fixed multiscale fusion;
 - optional Pathway/Gene support at 40x;
 - a single random-tensor forward example and a small shape test.
 
@@ -22,6 +23,12 @@ The production system uses CONCH-derived WSI patch representations, Patho-R1-7B
 for morphology-grounded visual observation, and Qwen3.5-9B for language-side
 reasoning and evidence verification. Those external models and their deployment
 wrappers are not required for the synthetic forward test below.
+
+The lightweight verifier in this review artifact is explicitly a demo-only
+controller. It recomputes evidence sufficiency after each acquisition so the
+synthetic trajectory can stop early or continue to another magnification
+depending on the currently accumulated evidence. It is not presented as the
+production Qwen/RAG verifier used in the reported experiments.
 
 ## Synthetic forward pass
 
@@ -57,12 +64,13 @@ sources throughout reasoning.
 
 ## Review-release boundary
 
-To reduce data-leakage risk and keep the double-blind artifact free of private
-infrastructure, this snapshot deliberately omits dataset preparation, benchmark
-files and labels, train/test split artifacts, patient-level supervision, trained
-weights, production prompts, local service configuration, logs, and experimental
-outputs. See `REVIEW_SCOPE.md` for the complete boundary.
+This snapshot is intended for architecture inspection and forward-path
+verification during double-blind review. It does not claim to be a standalone
+package for reproducing the benchmark tables without the external datasets,
+trained weights, and model services used by the full experimental pipeline.
 
-This repository is therefore a **forward-pass inspection artifact**, not a
-standalone reproduction bundle for the reported benchmark numbers. Additional
-training/evaluation assets can be released separately after the review process.
+To keep the review artifact free of patient/benchmark content and private
+infrastructure, it deliberately omits dataset preparation, benchmark files and
+labels, train/test split artifacts, patient-level supervision, trained weights,
+production prompts, local service configuration, logs, and experimental outputs.
+See `REVIEW_SCOPE.md` for the complete boundary.
