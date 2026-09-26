@@ -1,76 +1,102 @@
 # BioTrace
 
-**BioTrace** is a verifiable pathology agent for tracing molecular-to-phenotype
-evidence in whole-slide VQA. This anonymized review snapshot exposes the core
-architecture and inference interfaces described in the paper using a fully
-synthetic forward example.
+**BioTrace** is a pathology agent for evidence-guided whole-slide pathology VQA.
+It organizes multiscale WSI representations into a structured
+**Gene -> Pathway -> Phenotype** evidence space and performs question-driven
+evidence acquisition and verification before generating an answer.
 
-## What is included
+## Overview
 
-The artifact mirrors the paper at the level needed to inspect the forward path:
+BioTrace is built around three components:
 
-- a multiscale Gene -> Pathway -> Phenotype evidence space;
-- concept-specific prototype grounding and spatial responses;
-- prior-constrained Gene -> Pathway support and trainable relation strengths;
-- trainable Pathway -> Phenotype relations;
-- independent 10x / 20x / 40x structured evidence computation;
-- a lightweight evidence state with the five verifier states used by BioTrace;
-- adaptive coarse-to-fine 10x -> 20x -> 40x acquisition without fixed multiscale fusion;
-- optional Pathway/Gene support at 40x;
-- a single random-tensor forward example and a small shape test.
+1. **Structured biological evidence space.**  
+   Concept-specific prototypes ground Gene, Pathway, and Phenotype concepts in
+   multiscale WSI representations, producing patient-level predictions and
+   spatial responses over patches.
 
-The production system uses CONCH-derived WSI patch representations, Patho-R1-7B
-for morphology-grounded visual observation, and Qwen3.5-9B for language-side
-reasoning and evidence verification. Those external models and their deployment
-wrappers are not required for the synthetic forward test below.
+2. **Adaptive evidence acquisition.**  
+   The agent begins with compact phenotype evidence and progressively acquires
+   additional visual evidence across **10x -> 20x -> 40x** when needed.
+   Pathway- and Gene-level evidence can be queried at 40x as supportive
+   biological context.
 
-The lightweight verifier in this review artifact is explicitly a demo-only
-controller. It recomputes evidence sufficiency after each acquisition so the
-synthetic trajectory can stop early or continue to another magnification
-depending on the currently accumulated evidence. It is not presented as the
-production Qwen/RAG verifier used in the reported experiments.
+3. **Evidence verification and reasoning.**  
+   The accumulated evidence is maintained in an explicit evidence state.
+   After each acquisition step, the verifier updates the evidence status as
+   `sufficient`, `partial`, `conflicting`, `insufficient`, or
+   `unavailable`, allowing unresolved evidence requirements to guide the next
+   observation.
 
-## Synthetic forward pass
+The full BioTrace system uses **CONCH** for pathology representations,
+**Patho-R1-7B** for morphology-grounded visual observation, and
+**Qwen3.5-9B** for language-side reasoning and evidence verification.
+
+## Evidence hierarchy
+
+```text
+Whole-Slide Image
+       |
+       v
+Multiscale WSI representations
+  10x      20x      40x
+       |
+       v
+Gene -> Pathway -> Phenotype
+       |
+       v
+Question-driven evidence acquisition
+       |
+       v
+Evidence verification
+       |
+       v
+Final answer
+```
+
+Phenotype-, Pathway-, and Gene-level outputs are inferred from WSI
+representations. Pathway and Gene evidence provides supportive biological
+context, while directly observed morphology and phenotype-level evidence remain
+the primary evidence sources for pathology reasoning.
+
+## Quick start
+
+Install the minimal dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
+```
+
+Run the included forward example:
+
+```bash
 python demo_forward.py
 ```
 
-Expected output begins with:
+The example constructs random multiscale patch embeddings and runs them through
+the BioTrace evidence space and adaptive evidence-acquisition path.
 
-```text
-BioTrace synthetic forward: OK
-```
-
-The demo creates one synthetic WSI as random precomputed patch embeddings at
-10x, 20x, and 40x and runs the evidence-space and agent-state forward path. It
-does **not** load a WSI, patient record, benchmark question, answer, label, split,
-checkpoint, or molecular measurement.
-
-A minimal test is also provided:
+A minimal test suite is also included:
 
 ```bash
 python -m pytest -q
 ```
 
-## Evidence semantics
+## Repository structure
 
-Phenotype-, Pathway-, and Gene-level outputs are WSI-derived predictions. In the
-full system, Pathway/Gene evidence is supportive context and is not interpreted
-as measured RNA, IHC, FISH, mutation, copy number, or protein evidence. The
-agent maintains predictive, visual, and biological evidence as distinguishable
-sources throughout reasoning.
+```text
+.
+├── biotrace/
+│   ├── __init__.py
+│   ├── agent.py
+│   └── evidence_space.py
+├── tests/
+│   └── test_forward.py
+├── demo_forward.py
+├── requirements.txt
+└── README.md
+```
 
-## Review-release boundary
-
-This snapshot is intended for architecture inspection and forward-path
-verification during double-blind review. It does not claim to be a standalone
-package for reproducing the benchmark tables without the external datasets,
-trained weights, and model services used by the full experimental pipeline.
-
-To keep the review artifact free of patient/benchmark content and private
-infrastructure, it deliberately omits dataset preparation, benchmark files and
-labels, train/test split artifacts, patient-level supervision, trained weights,
-production prompts, local service configuration, logs, and experimental outputs.
-See `REVIEW_SCOPE.md` for the complete boundary.
+- `biotrace/evidence_space.py`: multiscale Gene-Pathway-Phenotype evidence modeling.
+- `biotrace/agent.py`: evidence state, adaptive acquisition, and verification.
+- `demo_forward.py`: end-to-end forward example.
+- `tests/test_forward.py`: basic forward and adaptive-control tests.
