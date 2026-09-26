@@ -27,6 +27,7 @@ class PathologyAgent:
         groups: List[EvidenceGroup],
         magnification: str,
         visual_guidance: Optional[List[str]] = None,
+        image_urls: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         metadata = [group.to_dict() for group in groups]
 
@@ -37,9 +38,10 @@ class PathologyAgent:
                 "scale_specific_visual_guidance": list(visual_guidance or []),
                 "selected_regions": metadata,
             }
-            raw = self.client.chat(
+            raw = self.client.chat_multimodal(
                 self.system_prompt,
                 json.dumps(payload, ensure_ascii=False),
+                list(image_urls or []),
                 max_tokens=300,
             )
             parsed = parse_json_response(raw)
