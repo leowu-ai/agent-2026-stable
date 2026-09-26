@@ -59,6 +59,7 @@ class BioTracePipeline(torch.nn.Module):
         features_by_scale: Mapping[str, Tensor],
         question_feature: Optional[Tensor] = None,
         image_urls_by_scale: Optional[Mapping[str, List[str]]] = None,
+        patch_boxes_by_scale: Optional[Mapping[str, Tensor]] = None,
     ) -> Dict[str, Any]:
         plan = self.planner.plan(case_id, question, choices)
         scale_results = self.g2p_agent.infer_case(features_by_scale)
@@ -115,6 +116,7 @@ class BioTracePipeline(torch.nn.Module):
                     scale,
                     parent_groups=parent,
                     patch_features=features_by_scale[scale],
+                    patch_boxes=(patch_boxes_by_scale or {}).get(scale),
                     question_feature=question_feature,
                 )
                 groups_by_scale[scale] = groups
