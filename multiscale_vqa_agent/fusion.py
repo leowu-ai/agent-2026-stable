@@ -60,15 +60,16 @@ class FusionAgent:
                         "backend": "language_reasoner",
                     }
 
-        candidate = memory.structured_candidate or {}
-        index = int(candidate.get("choice_index", 0))
-        index = max(0, min(index, len(options) - 1))
-        selected = options[index]
+        # The random-feature demo intentionally does not synthesize a benchmark
+        # answer from option order, string matching, or hidden labels.
         return {
-            "answer_id": selected["id"],
-            "answer": selected["text"],
+            "answer_id": None,
+            "answer": None,
             "confidence": round(float(memory.structured_confidence), 6),
-            "explanation": "Selected the synthetic structured candidate after evidence verification.",
-            "limitations": "Random-feature demo; no clinical interpretation is intended.",
-            "backend": "synthetic",
+            "explanation": (
+                "Evidence acquisition completed; final answer generation "
+                "requires the language reasoner interface."
+            ),
+            "limitations": "No language reasoner is enabled in the synthetic demo.",
+            "backend": "disabled",
         }
