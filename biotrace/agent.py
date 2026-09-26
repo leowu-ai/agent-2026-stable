@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Mapping
+from typing import Dict, List, Mapping, Optional
 
 import torch
 from torch import Tensor, nn
@@ -31,6 +31,7 @@ class EvidenceObservation:
     source: str
     magnification: str
     concept_index: int
+    patch_index: Optional[int]
     relevance: float
     reliability_context: float
     role: str
@@ -90,11 +91,20 @@ class BioTraceAgent(nn.Module):
             source="structured_phenotype",
             magnification=scale,
             concept_index=index,
+            patch_index=None,
             relevance=float(torch.softmax(scores, -1)[0, index].detach()),
             reliability_context=self._confidence(scores),
             role="direct_phenotype",
         ))
         return index
+
+    @staticmethod
+    def _linked_candidates(parent_index: int, parent_count: int, child_count: int) -> Tensor:
+        """Synthetic parent/child linkage for the random forward example only."""
+        start = int(parent_index * child_count / parent_count)
+        end = int((parent_index + 1) * child_count / parent_count)
+        end = max(start + 1, min(end, child_count))
+        return torch.arange(start, end)
 
     def _add_visual_evidence(
         self,
@@ -102,17 +112,29 @@ class BioTraceAgent(nn.Module):
         cache: Dict[str, Tensor],
         scale: str,
         phenotype_index: int,
-    ) -> None:
+        parent_patch: Optional[int] = None,
+        parent_count: Optional[int] = None,
+    ) -> int:
         response = cache["phenotype_spatial_response"][0, phenotype_index]
-        top_patch = int(torch.argmax(response).item())
+        if parent_patch is None or parent_count is None:
+            patch_index = int(torch.argmax(response).item())
+        else:
+            candidates = self._linked_candidates(
+                parent_patch, parent_count, response.numel()
+            ).to(response.device)
+            local = int(torch.argmax(response[candidates]).item())
+            patch_index = int(candidates[local].item())
+
         state.add(EvidenceObservation(
-            source=f"synthetic_visual_patch_{top_patch}",
+            source=f"synthetic_visual_patch_{patch_index}",
             magnification=scale,
             concept_index=phenotype_index,
-            relevance=float(response[top_patch].detach()),
+            patch_index=patch_index,
+            relevance=float(response[patch_index].detach()),
             reliability_context=0.5,
             role="visible_morphology_placeholder",
         ))
+        return patch_index
 
     def _add_supportive_biology(
         self,
@@ -136,6 +158,7 @@ class BioTraceAgent(nn.Module):
                 source="structured_pathway",
                 magnification="40x",
                 concept_index=int(pathway_index),
+                patch_index=None,
                 relevance=float(relation[pathway_index].abs().detach()),
                 reliability_context=0.5,
                 role="supportive_biology",
@@ -145,6 +168,7 @@ class BioTraceAgent(nn.Module):
                     source="structured_gene",
                     magnification="40x",
                     concept_index=int(gene_index),
+                    patch_index=None,
                     relevance=float(gp[gene_index, pathway_index].detach()),
                     reliability_context=0.5,
                     role="supportive_biology",
@@ -152,6 +176,7 @@ class BioTraceAgent(nn.Module):
         return {"pathways": [int(x) for x in pathways], "genes": [int(x) for x in genes]}
 
     def forward(self, multiscale_features: Mapping[str, Tensor]) -> Dict[str, object]:
+        # The scale-specific structured models run once and their outputs are cached.
         cache = self.evidence_space(multiscale_features)
         state = EvidenceState()
 
@@ -159,14 +184,28 @@ class BioTraceAgent(nn.Module):
         phenotype_index = self._add_phenotype_evidence(state, cache["10x"], "10x")
         state.status = self._demo_verify(state)
 
-        # Coarse-to-fine refinement; there is no fixed multiscale fusion.
-        support = {"pathways": [], "genes": []}
-        for scale in ("20x", "40x"):
+        # If unresolved, inspect morphology from coarse to fine while preserving
+        # synthetic parent/child correspondence between successive scales.
+        parent_patch: Optional[int] = None
+        parent_count: Optional[int] = None
+        for scale in ("10x", "20x", "40x"):
             if state.status == EvidenceStatus.SUFFICIENT:
                 break
-            self._add_visual_evidence(state, cache[scale], scale, phenotype_index)
-            if scale == "40x":
-                support = self._add_supportive_biology(state, cache[scale], phenotype_index)
+            patch_index = self._add_visual_evidence(
+                state,
+                cache[scale],
+                scale,
+                phenotype_index,
+                parent_patch=parent_patch,
+                parent_count=parent_count,
+            )
+            parent_patch = patch_index
+            parent_count = cache[scale]["phenotype_spatial_response"].shape[-1]
+            state.status = self._demo_verify(state)
+
+        support = {"pathways": [], "genes": []}
+        if "40x" in state.inspected_magnifications and state.status != EvidenceStatus.SUFFICIENT:
+            support = self._add_supportive_biology(state, cache["40x"], phenotype_index)
             state.status = self._demo_verify(state)
 
         return {
