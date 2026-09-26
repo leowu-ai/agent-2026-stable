@@ -110,7 +110,7 @@ def main() -> None:
 
     memory = result["working_memory"]
     print("BioTrace synthetic forward: OK")
-    print("answer:", result["answer"]["answer_id"], result["answer"]["answer"])
+    print("final arbitration backend:", result["answer"]["backend"])
     print("verifier:", memory["final_verifier"]["evidence_state"])
     print(
         "acquisition:",
